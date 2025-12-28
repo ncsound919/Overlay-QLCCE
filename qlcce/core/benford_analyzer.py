@@ -234,21 +234,23 @@ class BenfordQuantumAnalyzer:
                     })
         
         # Calculate correlations
-        if len(region_compliance) > 1:
+        if len(region_compliance) > 1 and len(region_properties) > 0:
             compliance_array = np.array(region_compliance)
             properties_array = np.array([list(p.values()) for p in region_properties])
             
-            # Correlation matrix
-            correlation_matrix = np.corrcoef(
-                np.column_stack([compliance_array, properties_array.T])
-            )
-            
-            return {
-                'region_compliance': region_compliance,
-                'region_properties': region_properties,
-                'correlation_matrix': correlation_matrix,
-                'mean_compliance': np.mean(region_compliance),
-                'std_compliance': np.std(region_compliance)
-            }
+            # Ensure both arrays have the same length
+            if len(compliance_array) == len(properties_array):
+                # Correlation matrix: compliance with each property
+                # Stack compliance as first column, then properties
+                data_matrix = np.column_stack([compliance_array.reshape(-1, 1), properties_array])
+                correlation_matrix = np.corrcoef(data_matrix.T)
+                
+                return {
+                    'region_compliance': region_compliance,
+                    'region_properties': region_properties,
+                    'correlation_matrix': correlation_matrix,
+                    'mean_compliance': np.mean(region_compliance),
+                    'std_compliance': np.std(region_compliance)
+                }
         
         return None
