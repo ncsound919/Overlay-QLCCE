@@ -28,6 +28,29 @@ warnings.filterwarnings('ignore')
 # Numerical stability constant used throughout for division and log operations
 EPSILON = 1e-10
 
+# ==================== HELPER FUNCTIONS ====================
+
+@jit(nopython=True)
+def _measure_correlation_function_impl(lattice, N, max_distance):
+    """JIT-compiled implementation of the two-point correlation function."""
+    correlations = np.zeros(max_distance)
+    counts = np.zeros(max_distance)
+
+    for i in range(N):
+        for j in range(N):
+            for d in range(1, max_distance):
+                # Average over all pairs at distance d
+                val = (lattice[i, j] *
+                       (lattice[(i + d) % N, j] +
+                        lattice[i, (j + d) % N] +
+                        lattice[(i - d) % N, j] +
+                        lattice[i, (j - d) % N]) / 4.0)
+                correlations[d] += val
+                counts[d] += 1
+
+    correlations = correlations / counts
+    return correlations
+
 # ==================== CORE PHYSICS ENGINE ====================
 
 class QuantumFieldSampler:
@@ -134,28 +157,6 @@ class QuantumFieldSampler:
             return kl_div
         return None
     
-    @staticmethod
-    @jit(nopython=True)
-    def _measure_correlation_function_impl(lattice, N, max_distance):
-        """JIT-compiled implementation of the two-point correlation function."""
-        correlations = np.zeros(max_distance)
-        counts = np.zeros(max_distance)
-
-        for i in range(N):
-            for j in range(N):
-                for d in range(1, max_distance):
-                    # Average over all pairs at distance d
-                    val = (lattice[i, j] *
-                           (lattice[(i + d) % N, j] +
-                            lattice[i, (j + d) % N] +
-                            lattice[(i - d) % N, j] +
-                            lattice[i, (j - d) % N]) / 4.0)
-                    correlations[d] += val
-                    counts[d] += 1
-
-        correlations = correlations / counts
-        return correlations
-
     def measure_correlation_function(self, max_distance=None):
         """Measure two-point correlation function <φ(x)φ(y)>"""
         if self.lattice is None:
@@ -165,7 +166,7 @@ class QuantumFieldSampler:
         if max_distance is None:
             max_distance = N // 2
         
-        return self._measure_correlation_function_impl(self.lattice, N, max_distance)
+        return _measure_correlation_function_impl(self.lattice, N, max_distance)
     
     def fourier_transform_field(self):
         """Compute momentum-space representation"""
