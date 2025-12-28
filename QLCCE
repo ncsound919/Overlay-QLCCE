@@ -21,8 +21,12 @@ from scipy import stats, special, integrate, fft
 from scipy.sparse import diags
 import sympy as sp
 from sympy.physics.quantum import Operator, Commutator
+from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
+
+# Numerical stability constant used throughout for division and log operations
+EPSILON = 1e-10
 
 # ==================== CORE PHYSICS ENGINE ====================
 
@@ -52,11 +56,20 @@ class QuantumFieldSampler:
         # Commutation relation [x, p] = iħ
         self.commutator = Commutator(self.x_op, self.p_op)
         
-    @jit(nopython=True, parallel=True)
     def generate_scalar_field(self, steps=1000, temperature=1.0):
         """
-        Generate quantum scalar field using Metropolis-Hastings algorithm
-        on a Euclidean lattice (Wick-rotated quantum field theory)
+        Generate a (Euclidean) quantum scalar field configuration using a
+        Metropolis-Hastings Markov Chain Monte Carlo algorithm on a lattice.
+
+        In this context, "Wick-rotated quantum field theory" means that the
+        real-time coordinate t has been analytically continued to imaginary
+        time τ = i t. This Wick rotation converts the Lorentzian path integral
+        into a Euclidean path integral where field configurations are weighted
+        by exp(-β S[φ]) rather than exp(i S[φ]/ħ). The resulting Euclidean
+        theory is mathematically equivalent to a classical statistical field
+        theory, which allows us to sample configurations with probability
+        proportional to exp(-β S) using standard Monte Carlo methods on the
+        lattice (as is done in lattice QCD and related simulations).
         """
         N = self.N
         lattice = np.random.randn(N, N).astype(np.float32)
@@ -76,9 +89,10 @@ class QuantumFieldSampler:
                                      lattice[i, (j+1)%N] + lattice[i, (j-1)%N]) / 4.0
                             
                             # Local action: ½(φ - φ_nn)² + ½m²φ² + (g/24)φ⁴
+                            # Note: g/24 = g/4! is the standard φ⁴ coupling normalization
                             S_old = 0.5 * (phi - phi_nn)**2 + 0.5 * self.m**2 * phi**2 + (self.g / 24.0) * phi**4
                             
-                            # Propose change
+                            # Propose change with proposal width of 0.1 (tuned for acceptance rate ~0.5)
                             phi_new = phi + np.random.normal(0, 0.1)
                             S_new = 0.5 * (phi_new - phi_nn)**2 + 0.5 * self.m**2 * phi_new**2 + (self.g / 24.0) * phi_new**4
                             
@@ -87,7 +101,7 @@ class QuantumFieldSampler:
                             if delta_S < 0 or np.random.random() < np.exp(-beta * delta_S):
                                 lattice[i, j] = phi_new
             
-            # Every 100 steps, check Benford's law compliance
+            # Check Benford's law compliance every 100 steps (balance between overhead and monitoring)
             if step % 100 == 0:
                 self._check_benford_compliance(lattice)
         
@@ -113,14 +127,35 @@ class QuantumFieldSampler:
             # Benford's law theoretical distribution
             benford = np.array([np.log10(1 + 1/d) for d in range(1, 10)])
             
-            # Calculate deviation (KL divergence)
-            kl_div = np.sum(observed * np.log(observed / benford))
+            # Calculate deviation (KL divergence) with epsilon for numerical stability
+            kl_div = np.sum(observed * np.log((observed + EPSILON) / (benford + EPSILON)))
             self.benford_deviations.append(kl_div)
             
             return kl_div
         return None
     
+    @staticmethod
     @jit(nopython=True)
+    def _measure_correlation_function_impl(lattice, N, max_distance):
+        """JIT-compiled implementation of the two-point correlation function."""
+        correlations = np.zeros(max_distance)
+        counts = np.zeros(max_distance)
+
+        for i in range(N):
+            for j in range(N):
+                for d in range(1, max_distance):
+                    # Average over all pairs at distance d
+                    val = (lattice[i, j] *
+                           (lattice[(i + d) % N, j] +
+                            lattice[i, (j + d) % N] +
+                            lattice[(i - d) % N, j] +
+                            lattice[i, (j - d) % N]) / 4.0)
+                    correlations[d] += val
+                    counts[d] += 1
+
+        correlations = correlations / counts
+        return correlations
+
     def measure_correlation_function(self, max_distance=None):
         """Measure two-point correlation function <φ(x)φ(y)>"""
         if self.lattice is None:
@@ -130,23 +165,7 @@ class QuantumFieldSampler:
         if max_distance is None:
             max_distance = N // 2
         
-        correlations = np.zeros(max_distance)
-        counts = np.zeros(max_distance)
-        
-        for i in range(N):
-            for j in range(N):
-                for d in range(1, max_distance):
-                    # Average over all pairs at distance d
-                    val = (self.lattice[i, j] * 
-                           (self.lattice[(i+d)%N, j] + 
-                            self.lattice[i, (j+d)%N] +
-                            self.lattice[(i-d)%N, j] + 
-                            self.lattice[i, (j-d)%N]) / 4.0)
-                    correlations[d] += val
-                    counts[d] += 1
-        
-        correlations = correlations / counts
-        return correlations
+        return self._measure_correlation_function_impl(self.lattice, N, max_distance)
     
     def fourier_transform_field(self):
         """Compute momentum-space representation"""
@@ -284,7 +303,9 @@ class MultiLogTransformer:
             return log_result * (1 + 0.1 * chaotic_perturbation)
         
         else:
-            raise ValueError(f"Mode {mode} not recognized")
+            raise ValueError(
+                f"Mode {mode} not recognized. Available modes: 'direct', 'iterated', 'super-log', 'chaotic'"
+            )
     
     def _lorenz_perturbation(self, n_points, sigma=10, rho=28, beta=8/3, dt=0.01):
         """Generate chaotic perturbation using Lorenz system"""
@@ -330,20 +351,25 @@ class MultiLogTransformer:
                     pi = np.abs(transformed_data[base_i])
                     pj = np.abs(transformed_data[base_j])
                     
-                    pi = pi / (pi.sum() + 1e-10)
-                    pj = pj / (pj.sum() + 1e-10)
+                    pi = pi / (pi.sum() + EPSILON)
+                    pj = pj / (pj.sum() + EPSILON)
                     
                     # Calculate symmetric KL divergence
-                    kl_ij = np.sum(pi * np.log(pi / (pj + 1e-10) + 1e-10))
-                    kl_ji = np.sum(pj * np.log(pj / (pi + 1e-10) + 1e-10))
+                    kl_ij = np.sum(pi * np.log((pi + EPSILON) / (pj + EPSILON)))
+                    kl_ji = np.sum(pj * np.log((pj + EPSILON) / (pi + EPSILON)))
                     
                     divergence[i, j] = (kl_ij + kl_ji) / 2
         
         return divergence
     
-    def detect_log_periodicity(self, data, base='e', significance=0.01):
+    def detect_log_periodicity(self, data, base='e', threshold=0.01):
         """
         Detect log-periodic patterns (signatures of discrete scale invariance)
+        
+        Parameters
+        ----------
+        threshold : float
+            Threshold for peak detection significance
         
         Returns:
         --------
@@ -375,7 +401,26 @@ class MultiLogTransformer:
         return periods, sig
     
     def _find_peaks(self, data, threshold):
-        """Find peaks in 1D data"""
+        """
+        Find peaks in 1D data.
+        
+        A peak is defined as a local maximum where the value exceeds the
+        specified threshold. The method compares each point with its immediate
+        neighbors and identifies points that are greater than both neighbors
+        and above the threshold.
+        
+        Parameters
+        ----------
+        data : array-like
+            Input data to search for peaks
+        threshold : float
+            Minimum value for a point to be considered a peak
+            
+        Returns
+        -------
+        peaks : list
+            Indices of detected peaks
+        """
         peaks = []
         for i in range(1, len(data)-1):
             if data[i] > data[i-1] and data[i] > data[i+1] and data[i] > threshold:
@@ -383,7 +428,14 @@ class MultiLogTransformer:
         return peaks
     
     def _calculate_significance(self, data, periods, n_surrogates=1000):
-        """Calculate significance using phase randomization"""
+        """
+        Calculate significance using phase randomization.
+        
+        Note: Generating 1000 surrogates can be computationally expensive for
+        large datasets. The default value balances statistical robustness with
+        computation time. Consider reducing n_surrogates for very large datasets
+        or when quick results are needed.
+        """
         # Generate surrogate data by randomizing phases
         original_power = np.abs(np.fft.fft(data))**2
         
@@ -431,20 +483,24 @@ class ChaoticConstraintSystem:
         def equations(state, t):
             x, y, z = state
             
-            # Apply constraints if any
-            if constraints:
-                for constraint in constraints:
-                    x, y, z = constraint(state, t)
-            
             dx = sigma * (y - x)
             dy = x * (rho - z) - y
             dz = x * y - beta * z
+            
+            # Apply constraints to derivatives if any
+            if constraints:
+                for constraint in constraints:
+                    result = constraint([dx, dy, dz], t)
+                    if result is not None:
+                        dx, dy, dz = result
             
             return [dx, dy, dz]
         
         return equations
     
     def rossler_system(self, params=None, constraints=None):
+        # Note: the function name uses ASCII 'rossler' for compatibility with code and tooling;
+        # it corresponds to the 'Rössler' chaotic system described here.
         """Rössler system with optional constraints"""
         if params is None:
             params = {'a': 0.2, 'b': 0.2, 'c': 5.7}
@@ -454,14 +510,16 @@ class ChaoticConstraintSystem:
         def equations(state, t):
             x, y, z = state
             
-            # Apply constraints
-            if constraints:
-                for constraint in constraints:
-                    x, y, z = constraint(state, t)
-            
             dx = -y - z
             dy = x + a * y
             dz = b + z * (x - c)
+            
+            # Apply constraints to derivatives if any
+            if constraints:
+                for constraint in constraints:
+                    result = constraint([dx, dy, dz], t)
+                    if result is not None:
+                        dx, dy, dz = result
             
             return [dx, dy, dz]
         
@@ -522,7 +580,7 @@ class ChaoticConstraintSystem:
             else:
                 # For single value (logistic map)
                 s = state
-                if 'bounds' in bounds:
+                if isinstance(bounds, dict) and 'bounds' in bounds:
                     low, high = bounds['bounds']
                     if s < low:
                         s = low + (low - s)
@@ -535,20 +593,40 @@ class ChaoticConstraintSystem:
     def _create_symmetry_constraint(self, axis='z'):
         """Create symmetry constraint (e.g., z → -z)"""
         def constraint(state, t=None):
-            if isinstance(state, (list, np.ndarray)):
-                if axis == 'x':
-                    state[0] = -state[0]
-                elif axis == 'y':
-                    state[1] = -state[1]
-                elif axis == 'z':
-                    state[2] = -state[2]
-            return state
+            # Avoid in-place modification so that chained constraints
+            # do not unexpectedly share mutated state.
+            if isinstance(state, np.ndarray):
+                new_state = state.copy()
+            elif isinstance(state, list):
+                new_state = list(state)
+            else:
+                # For scalar or unsupported types, leave state unchanged.
+                return state
+
+            if axis == 'x' and len(new_state) > 0:
+                new_state[0] = -new_state[0]
+            elif axis == 'y' and len(new_state) > 1:
+                new_state[1] = -new_state[1]
+            elif axis == 'z' and len(new_state) > 2:
+                new_state[2] = -new_state[2]
+
+            return new_state
         return constraint
     
     def _create_conservation_constraint(self, conserved_quantity='energy'):
-        """Create conservation law constraint"""
+        """
+        Create a placeholder conservation-law constraint.
+
+        This helper currently returns a no-op constraint that leaves the
+        state unchanged and does not enforce conservation of the specified
+        quantity. The ``conserved_quantity`` parameter is reserved for future
+        extensions where a concrete conservation law (e.g., energy, momentum)
+        will be computed from the state and enforced over time.
+        """
         def constraint(state, t=None):
-            # Placeholder - would enforce conservation of specified quantity
+            # Placeholder: does not yet enforce conservation of any quantity.
+            # The state is returned unchanged by design until a full
+            # conservation mechanism is implemented.
             return state
         return constraint
     
@@ -580,19 +658,25 @@ class ChaoticConstraintSystem:
         
         # Calculate Lyapunov exponents using Rosenstein's algorithm
         m = embedded.shape[1]
-        lexp = np.zeros(m)
+        lyapunov_exponents = np.zeros(m)
         
         # For simplicity, use a basic estimation
         # In practice, use more robust algorithm
         for i in range(m):
             # Calculate divergence of nearby trajectories
             divergences = []
-            for j in range(10, n-10):
+            # Ensure indices j and j+1 are within bounds of the embedded array
+            max_j = min(n - 10, embedded.shape[0] - 1)
+            for j in range(10, max_j):
                 ref_point = embedded[j, i]
                 # Find nearest neighbor
                 distances = np.abs(embedded[:, i] - ref_point)
                 distances[j-5:j+5] = np.inf  # Exclude immediate neighbors
                 nn_idx = np.argmin(distances)
+                
+                # Guard against nn_idx+1 exceeding the array bounds
+                if nn_idx >= embedded.shape[0] - 1:
+                    continue
                 
                 divergence = np.abs(embedded[j+1, i] - embedded[nn_idx+1, i])
                 initial_dist = np.abs(embedded[j, i] - embedded[nn_idx, i])
@@ -601,9 +685,9 @@ class ChaoticConstraintSystem:
                     divergences.append(np.log(divergence / initial_dist))
             
             if divergences:
-                lexp[i] = np.mean(divergences) / dt
+                lyapunov_exponents[i] = np.mean(divergences) / dt
         
-        return lexp
+        return lyapunov_exponents
     
     def _time_delay_embedding(self, signal, delay=1, dimension=3):
         """Create time-delay embedding of signal"""
@@ -731,6 +815,9 @@ class BenfordQuantumAnalyzer:
             s = f"{x:.10f}".replace('.', '').lstrip('0')
             if len(s) >= n:
                 digits.append(int(s[n-1]))
+            else:
+                # If the number doesn't have enough digits, skip it
+                continue
         return np.array(digits)
     
     def _expected_nth_digit(self, n):
@@ -745,15 +832,19 @@ class BenfordQuantumAnalyzer:
             for d in range(10):
                 prob = 0
                 for k in range(10**(n-2), 10**(n-1)):
-                    prob += np.log10(1 + 1/(10*k + d))
+                    # Guard against division by zero when d=0 and k=0
+                    denominator = 10*k + d
+                    if denominator > 0:
+                        prob += np.log10(1 + 1/denominator)
                 probs[d] = prob
             return probs / probs.sum()
     
     def _chi_square_test(self, observed_counts, total, digit_position):
         """Chi-square goodness-of-fit test"""
         expected_counts = self.expected * total if digit_position == 1 else self._expected_nth_digit(digit_position) * total
-        expected_counts = expected_counts[expected_counts > 0]
-        observed_counts = observed_counts[expected_counts > 0]
+        mask = expected_counts > 0
+        expected_counts = expected_counts[mask]
+        observed_counts = observed_counts[mask]
         
         chi2 = np.sum((observed_counts - expected_counts)**2 / expected_counts)
         df = len(expected_counts) - 1
@@ -777,15 +868,18 @@ class BenfordQuantumAnalyzer:
     def _kl_divergence(self, observed, digit_position):
         """Kullback-Leibler divergence"""
         expected = self.expected if digit_position == 1 else self._expected_nth_digit(digit_position)
-        # Add small epsilon to avoid log(0)
-        kl = np.sum(observed * np.log(observed / (expected + 1e-10) + 1e-10))
+        # Add small epsilon to avoid log(0) and division by zero
+        kl = np.sum(observed * np.log((observed + EPSILON) / (expected + EPSILON)))
         return kl
     
     def _js_divergence(self, observed, digit_position):
         """Jensen-Shannon divergence (symmetric)"""
         expected = self.expected if digit_position == 1 else self._expected_nth_digit(digit_position)
         m = 0.5 * (observed + expected)
-        js = 0.5 * self._kl_divergence(observed, digit_position) + 0.5 * self._kl_divergence(expected, digit_position)
+        # Calculate KL(P||M) and KL(Q||M) where M = (P+Q)/2
+        kl_obs_m = np.sum(observed * np.log((observed + EPSILON) / (m + EPSILON)))
+        kl_exp_m = np.sum(expected * np.log((expected + EPSILON) / (m + EPSILON)))
+        js = 0.5 * kl_obs_m + 0.5 * kl_exp_m
         return js
     
     def analyze_multiscale(self, data, scales=None):
@@ -1148,6 +1242,7 @@ class QLCCE_Engine:
             power_flat = ft_power.flatten()
             
             # Bin by k magnitude
+            # Note: Could be optimized using scipy.stats.binned_statistic for large datasets
             k_bins = np.linspace(0, k_flat.max(), 50)
             bin_centers = (k_bins[:-1] + k_bins[1:]) / 2
             bin_powers = np.zeros(len(bin_centers))
