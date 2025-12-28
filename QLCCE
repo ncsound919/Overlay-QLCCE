@@ -499,9 +499,12 @@ class ChaoticConstraintSystem:
         return equations
     
     def rossler_system(self, params=None, constraints=None):
-        # Note: the function name uses ASCII 'rossler' for compatibility with code and tooling;
-        # it corresponds to the 'Rössler' chaotic system described here.
-        """Rössler system with optional constraints"""
+        """
+        Rössler system with optional constraints
+        
+        Note: the function name uses ASCII 'rossler' for compatibility with code
+        and tooling; it corresponds to the 'Rössler' chaotic system.
+        """
         if params is None:
             params = {'a': 0.2, 'b': 0.2, 'c': 5.7}
         
@@ -563,10 +566,18 @@ class ChaoticConstraintSystem:
         return constraint
     
     def _create_boundary_constraint(self, bounds):
-        """Create boundary constraint (reflecting/absorbing)"""
+        """
+        Create boundary constraint (reflecting/absorbing).
+        
+        Parameters
+        ----------
+        bounds : list of tuples or dict
+            For ODE systems: list of (low, high) tuples, one per dimension.
+            For scalar systems (logistic map): dict with 'bounds' key containing (low, high) tuple.
+        """
         def constraint(state, t=None):
             if isinstance(state, (list, np.ndarray)):
-                # For ODE systems
+                # For ODE systems: bounds is a list of (low, high) tuples
                 constrained_state = []
                 for i, s in enumerate(state):
                     if i < len(bounds):
@@ -578,7 +589,7 @@ class ChaoticConstraintSystem:
                     constrained_state.append(s)
                 return constrained_state
             else:
-                # For single value (logistic map)
+                # For single value (logistic map): bounds is a dict with 'bounds' key
                 s = state
                 if isinstance(bounds, dict) and 'bounds' in bounds:
                     low, high = bounds['bounds']
@@ -666,7 +677,7 @@ class ChaoticConstraintSystem:
             # Calculate divergence of nearby trajectories
             divergences = []
             # Ensure indices j and j+1 are within bounds of the embedded array
-            max_j = min(n - 10, embedded.shape[0] - 1)
+            max_j = min(embedded.shape[0] - 10, embedded.shape[0] - 1)
             for j in range(10, max_j):
                 ref_point = embedded[j, i]
                 # Find nearest neighbor
@@ -808,16 +819,19 @@ class BenfordQuantumAnalyzer:
         return first_digits.astype(int)
     
     def _extract_nth_digit(self, data, n):
-        """Extract nth digit (n=1 for first, n=2 for second, etc.)"""
+        """
+        Extract nth digit (n=1 for first, n=2 for second, etc.)
+        
+        Returns only the digits from numbers that have at least n digits.
+        This is acceptable since callers use bincount which handles variable-length arrays.
+        """
         # Convert to string representation and extract digit
         digits = []
         for x in data:
             s = f"{x:.10f}".replace('.', '').lstrip('0')
             if len(s) >= n:
                 digits.append(int(s[n-1]))
-            else:
-                # If the number doesn't have enough digits, skip it
-                continue
+            # Skip numbers that don't have enough digits
         return np.array(digits)
     
     def _expected_nth_digit(self, n):
