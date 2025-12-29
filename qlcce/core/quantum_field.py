@@ -6,7 +6,6 @@ with built-in Benford's law compliance checking.
 """
 
 import numpy as np
-from numba import jit, prange
 from scipy import stats
 import sympy as sp
 from sympy.physics.quantum import Operator, Commutator
