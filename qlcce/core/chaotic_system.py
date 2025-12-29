@@ -111,7 +111,7 @@ class ChaoticConstraintSystem:
         """Create boundary constraint (reflecting/absorbing)"""
         def constraint(state, t=None, *args):
             # Handle both ODE systems (state, t) and logistic map (state, prev_state, iteration)
-            if isinstance(state, (list, np.ndarray)) and not np.isscalar(state):
+            if isinstance(state, list) or (isinstance(state, np.ndarray) and np.ndim(state) > 0):
                 # For ODE systems
                 constrained_state = []
                 for i, s in enumerate(state):
