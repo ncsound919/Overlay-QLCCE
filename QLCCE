@@ -852,7 +852,12 @@ class BenfordQuantumAnalyzer:
                     if denominator > 0:
                         prob += np.log10(1 + 1/denominator)
                 probs[d] = prob
-            return probs / probs.sum()
+            # Normalize probabilities with a guard against zero or near-zero sums
+            total = probs.sum()
+            if total > 1e-12:
+                return probs / total
+            # Fallback: uniform distribution over digits 0-9 if probabilities are degenerate
+            return np.full_like(probs, 1.0 / len(probs), dtype=float)
     
     def _chi_square_test(self, observed_counts, total, digit_position):
         """Chi-square goodness-of-fit test"""
