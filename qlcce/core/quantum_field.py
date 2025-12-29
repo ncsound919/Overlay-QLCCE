@@ -30,7 +30,6 @@ class QuantumFieldSampler:
         
     def _setup_symbolic_operators(self):
         """Setup symbolic quantum field operators"""
-        x, p = sp.symbols('x p', commutative=False)
         self.x_op = Operator('x')
         self.p_op = Operator('p')
         
