@@ -27,23 +27,41 @@ A full-stack research environment for studying quantum field theory simulations,
 │   │   ├── App.tsx       # Main application
 │   │   └── components/   # React components
 │   └── package.json      # Node dependencies
-└── docker-compose.yml    # Docker orchestration
+└── run.py                # Standalone launcher script
 ```
 
 ## Quick Start
 
-### Using Docker (Recommended)
+### Prerequisites
+
+- **Python 3.9+** 
+- **Node.js 18+** and npm
+
+### One-Command Launch
+
+Simply run the launcher script to start both backend and frontend:
 
 ```bash
-docker-compose up --build
+python run.py
 ```
 
-Access the application:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+This will:
+1. Install all Python dependencies automatically
+2. Install all Node.js dependencies automatically
+3. Start the backend API server on port 8000
+4. Start the frontend development server on port 5173
+5. Display access URLs when ready
 
-### Manual Setup
+Access the application:
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+Press `Ctrl+C` to stop all services.
+
+### Manual Setup (Alternative)
+
+If you prefer to run services separately:
 
 #### Backend
 
