@@ -13,10 +13,7 @@ This tool creates a research environment that integrates:
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm
-from mpl_toolkits.mplot3d import Axes3D
 from scipy import stats
-import sympy as sp
 from sympy.physics.quantum import Operator, Commutator
 import warnings
 warnings.filterwarnings('ignore')
@@ -42,7 +39,6 @@ class QuantumFieldSampler:
         
     def _setup_symbolic_operators(self):
         """Setup symbolic quantum field operators"""
-        sp.symbols('x p', commutative=False)
         self.x_op = Operator('x')
         self.p_op = Operator('p')
         
