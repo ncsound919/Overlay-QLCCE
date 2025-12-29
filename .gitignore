@@ -7,6 +7,11 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
@@ -54,6 +59,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+# Virtual environments
+venv/
+ENV/
+env/
 
 # IDEs
 .vscode/
