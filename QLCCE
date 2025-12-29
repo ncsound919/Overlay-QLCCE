@@ -487,7 +487,7 @@ class ChaoticConstraintSystem:
             # Apply constraints to state if any
             if constraints:
                 for constraint in constraints:
-                    result = constraint(state, t)
+                    result = constraint([x, y, z], t)
                     if result is not None:
                         x, y, z = result
             
