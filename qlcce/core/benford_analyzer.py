@@ -137,13 +137,22 @@ class BenfordQuantumAnalyzer:
         return ks_stat, p_value
     
     def _kl_divergence(self, observed, digit_position):
-        """Kullback-Leibler divergence"""
+        """
+        Kullback-Leibler divergence D_KL(P||Q) = sum P(i) log(P(i)/Q(i))
+        
+        If expected probability is positive while observed is zero, the theoretical 
+        KL divergence is infinite. We handle this by returning inf. For numerical
+        stability, epsilon is added to both distributions consistently.
+        """
         expected = self.expected if digit_position == 1 else self._expected_nth_digit(digit_position)
-        # KL divergence with epsilon for numerical stability
         kl = 0.0
         for d in range(len(observed)):
-            if observed[d] > 0:
-                kl += observed[d] * np.log((observed[d] + EPSILON) / (expected[d] + EPSILON))
+            # If expected has probability but observed doesn't, KL divergence is infinite
+            if observed[d] <= 0 and expected[d] > EPSILON:
+                return np.inf
+            # Use epsilon consistently to decide whether to include this bin
+            if observed[d] > EPSILON or expected[d] > EPSILON:
+                kl += (observed[d] + EPSILON) * np.log((observed[d] + EPSILON) / (expected[d] + EPSILON))
         return kl
     
     def _js_divergence(self, observed, digit_position):
@@ -173,6 +182,12 @@ class BenfordQuantumAnalyzer:
         results = {}
         data = np.array(data)
         
+        # Filter out non-positive values before binning
+        data = data[data > 0]
+        
+        if len(data) == 0:
+            return results
+        
         for scale in scales:
             # Bin data logarithmically
             if scale > 1:
@@ -201,15 +216,25 @@ class BenfordQuantumAnalyzer:
     
     def quantum_benford_correlation(self, field_data, position_correlation=False):
         """
-        Analyze correlation between Benford compliance and quantum field properties
+        Analyze correlation between Benford compliance and quantum field properties.
+
+        Parameters
+        ----------
+        field_data : array-like or dict
+            Quantum field configuration. If a dict is provided, it must contain
+            a 'lattice' entry with the field values.
+        position_correlation : bool, optional
+            Reserved for future use. Currently ignored and kept only for
+            backwards-compatible API; it has no effect on the analysis.
         """
+        # NOTE: `position_correlation` is currently a placeholder argument and
+        # does not affect the analysis. It is kept for backward compatibility.
         if isinstance(field_data, dict) and 'lattice' in field_data:
             lattice = field_data['lattice']
         else:
             lattice = field_data
         
         # Analyze Benford compliance in different regions
-        n_regions = 4
         region_size = lattice.shape[0] // 2
         
         region_compliance = []

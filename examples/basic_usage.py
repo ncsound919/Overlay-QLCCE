@@ -54,7 +54,7 @@ def main():
     chaos = ChaoticConstraintSystem(system_type='lorenz')
     
     # Add a boundary constraint
-    constraint = chaos.add_constraint('boundary', bounds=[(-20, 20), (-30, 30), (0, 50)])
+    chaos.add_constraint('boundary', bounds=[(-20, 20), (-30, 30), (0, 50)])
     
     # Generate Lorenz system
     from scipy.integrate import odeint

@@ -59,6 +59,7 @@ class QuantumFieldSampler:
                                      lattice[i, (j+1)%N] + lattice[i, (j-1)%N]) / 4.0
                             
                             # Local action: ½(φ - φ_nn)² + ½m²φ² + (g/24)φ⁴
+                            # Note: 24 = 4! is the factorial from φ⁴ theory quartic term
                             S_old = 0.5 * (phi - phi_nn)**2 + 0.5 * self.m**2 * phi**2 + (self.g / 24.0) * phi**4
                             
                             # Propose change

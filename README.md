@@ -39,6 +39,8 @@ pip install .
 
 ### Command Line Interface
 
+After installation with `pip install -e .` or `pip install .`, you can use the CLI:
+
 ```bash
 # Quick analysis with default settings
 qlcce --quick
@@ -51,6 +53,13 @@ qlcce --config configs/default.json
 
 # Export results
 qlcce --full --export results.json
+```
+
+Alternatively, without installing the package, you can use:
+
+```bash
+# Run CLI module directly
+python -m qlcce.cli --quick
 ```
 
 ### Python API

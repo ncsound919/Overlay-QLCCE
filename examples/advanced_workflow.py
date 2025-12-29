@@ -43,7 +43,7 @@ def main():
     print(f"Shannon entropy: {properties['entropy']:.4f} bits")
     
     # FFT analysis
-    ft_power, kx, ky = field_sampler.fourier_transform_field()
+    field_sampler.fourier_transform_field()
     print(f"Fourier transform power spectrum computed")
     
     # === STEP 2: Multi-Base Logarithmic Analysis ===
@@ -115,13 +115,13 @@ def main():
     
     # Add multiple constraints
     print("Adding constraints:")
-    boundary_const = chaos.add_constraint('boundary', bounds=[(-20, 20), (-30, 30), (0, 50)])
+    chaos.add_constraint('boundary', bounds=[(-20, 20), (-30, 30), (0, 50)])
     print("  ✓ Boundary constraint (reflecting walls)")
     
-    quantum_const = chaos.add_constraint('quantum', uncertainty=0.05)
+    chaos.add_constraint('quantum', uncertainty=0.05)
     print("  ✓ Quantum uncertainty constraint")
     
-    symmetry_const = chaos.add_constraint('symmetry', axis='z')
+    chaos.add_constraint('symmetry', axis='z')
     print("  ✓ Symmetry constraint (z-axis reflection)")
     
     # Generate Lorenz trajectory

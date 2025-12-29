@@ -42,9 +42,12 @@ class ChaoticConstraintSystem:
         return equations
     
     def rossler_system(self, params=None, constraints=None):
-        # Note: the function name uses ASCII 'rossler' for compatibility with code and tooling;
-        # it corresponds to the 'Rössler' chaotic system described here.
-        """Rössler system with optional constraints"""
+        """
+        Rossler (ASCII representation of Rössler) system with optional constraints.
+        
+        Note: the function name uses ASCII 'rossler' for compatibility with code 
+        and tooling; it corresponds to the Rössler chaotic system.
+        """
         if params is None:
             params = {'a': 0.2, 'b': 0.2, 'c': 5.7}
         
@@ -106,8 +109,9 @@ class ChaoticConstraintSystem:
     
     def _create_boundary_constraint(self, bounds):
         """Create boundary constraint (reflecting/absorbing)"""
-        def constraint(state, t=None):
-            if isinstance(state, (list, np.ndarray)):
+        def constraint(state, t=None, *args):
+            # Handle both ODE systems (state, t) and logistic map (state, prev_state, iteration)
+            if isinstance(state, (list, np.ndarray)) and not np.isscalar(state):
                 # For ODE systems
                 constrained_state = []
                 for i, s in enumerate(state):
@@ -124,6 +128,13 @@ class ChaoticConstraintSystem:
                 s = state
                 if isinstance(bounds, dict) and 'bounds' in bounds:
                     low, high = bounds['bounds']
+                    if s < low:
+                        s = low + (low - s)
+                    elif s > high:
+                        s = high - (s - high)
+                elif isinstance(bounds, (list, tuple)) and len(bounds) > 0:
+                    # Handle bounds provided as list of tuples for single value
+                    low, high = bounds[0]
                     if s < low:
                         s = low + (low - s)
                     elif s > high:
@@ -157,20 +168,21 @@ class ChaoticConstraintSystem:
     
     def _create_conservation_constraint(self, conserved_quantity='energy'):
         """
-        Create a placeholder conservation-law constraint.
+        Create a conservation-law constraint.
 
-        This helper currently returns a no-op constraint that leaves the
-        state unchanged and does not enforce conservation of the specified
-        quantity. The ``conserved_quantity`` parameter is reserved for future
+        This constraint is currently not implemented. It is reserved for future
         extensions where a concrete conservation law (e.g., energy, momentum)
         will be computed from the state and enforced over time.
+        
+        Raises
+        ------
+        NotImplementedError
+            Always raised as this constraint type is not yet implemented.
         """
-        def constraint(state, t=None):
-            # Placeholder: does not yet enforce conservation of any quantity.
-            # The state is returned unchanged by design until a full
-            # conservation mechanism is implemented.
-            return state
-        return constraint
+        raise NotImplementedError(
+            "Conservation constraints are not yet implemented. "
+            "This feature is reserved for future development."
+        )
     
     def _create_quantum_constraint(self, uncertainty=0.1):
         """Create quantum uncertainty constraint"""
@@ -209,6 +221,10 @@ class ChaoticConstraintSystem:
             divergences = []
             # Ensure indices j and j+1 are within bounds of the embedded array
             max_j = min(n - 10, embedded.shape[0] - 1)
+            # If max_j is not greater than the lower bound, there are not enough
+            # samples to compute meaningful divergences in this dimension.
+            if max_j <= 10:
+                continue
             for j in range(10, max_j):
                 ref_point = embedded[j, i]
                 # Find nearest neighbor

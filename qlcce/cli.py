@@ -5,7 +5,6 @@ QLCCE Command Line Interface
 
 import argparse
 import json
-import sys
 
 
 def main():
