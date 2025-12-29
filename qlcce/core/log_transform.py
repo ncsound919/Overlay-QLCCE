@@ -213,7 +213,6 @@ class MultiLogTransformer:
     def _calculate_significance(self, data, periods, n_surrogates=1000):
         """Calculate significance using phase randomization"""
         # Generate surrogate data by randomizing phases
-        original_power = np.abs(np.fft.fft(data))**2
         
         surrogate_peaks = []
         for _ in range(n_surrogates):
