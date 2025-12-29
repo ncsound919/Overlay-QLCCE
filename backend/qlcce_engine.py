@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import stats, special, integrate, fft
-from scipy.sparse import diags
 import sympy as sp
 from sympy.physics.quantum import Operator, Commutator
 import warnings
