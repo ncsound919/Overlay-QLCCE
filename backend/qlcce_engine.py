@@ -1144,7 +1144,6 @@ class QLCCE_Engine:
         # 7. Fourier transform of field
         ax7 = fig.add_subplot(3, 4, 7)
         if 'field' in self.results:
-            field = self.results['field']
             ft_power, kx, ky = self.quantum_field.fourier_transform_field()
             # Plot radial average
             k_mag = np.sqrt(kx[:, np.newaxis]**2 + ky**2)
