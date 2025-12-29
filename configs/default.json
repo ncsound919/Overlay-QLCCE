@@ -1,0 +1,8 @@
+{
+  "lattice_size": 64,
+  "field_mass": 0.1,
+  "field_coupling": 1.0,
+  "chaos_system": "lorenz",
+  "log_bases": ["e", "10", "2", "golden"],
+  "constraints": ["boundary", "quantum"]
+}
