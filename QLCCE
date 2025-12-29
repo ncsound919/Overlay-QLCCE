@@ -484,16 +484,16 @@ class ChaoticConstraintSystem:
         def equations(state, t):
             x, y, z = state
             
+            # Apply constraints to state if any
+            if constraints:
+                for constraint in constraints:
+                    result = constraint(state, t)
+                    if result is not None:
+                        x, y, z = result
+            
             dx = sigma * (y - x)
             dy = x * (rho - z) - y
             dz = x * y - beta * z
-            
-            # Apply constraints to derivatives if any
-            if constraints:
-                for constraint in constraints:
-                    result = constraint([dx, dy, dz], t)
-                    if result is not None:
-                        dx, dy, dz = result
             
             return [dx, dy, dz]
         
@@ -514,16 +514,16 @@ class ChaoticConstraintSystem:
         def equations(state, t):
             x, y, z = state
             
+            # Apply constraints to state if any
+            if constraints:
+                for constraint in constraints:
+                    result = constraint(state, t)
+                    if result is not None:
+                        x, y, z = result
+            
             dx = -y - z
             dy = x + a * y
             dz = b + z * (x - c)
-            
-            # Apply constraints to derivatives if any
-            if constraints:
-                for constraint in constraints:
-                    result = constraint([dx, dy, dz], t)
-                    if result is not None:
-                        dx, dy, dz = result
             
             return [dx, dy, dz]
         
@@ -847,7 +847,7 @@ class BenfordQuantumAnalyzer:
             for d in range(10):
                 prob = 0
                 for k in range(10**(n-2), 10**(n-1)):
-                    # Guard against division by zero when d=0 and k=0
+                    # Defensive check: with current bounds k >= 10**(n-2) >= 1, so denominator is always > 0
                     denominator = 10*k + d
                     if denominator > 0:
                         prob += np.log10(1 + 1/denominator)
