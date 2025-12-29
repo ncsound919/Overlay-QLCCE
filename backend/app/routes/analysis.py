@@ -3,6 +3,7 @@ Analysis routes for QLCCE API
 """
 import sys
 import os
+import logging
 from typing import Optional
 import numpy as np
 import base64
@@ -14,6 +15,9 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Add parent directory to import QLCCE
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
@@ -21,7 +25,7 @@ from qlcce_engine import QLCCE_Engine, QuantumFieldSampler, MultiLogTransformer,
 
 router = APIRouter()
 
-# Store running analyses
+# Store running analyses (Note: In production, use Redis or database for persistence)
 analyses_store: dict = {}
 
 
@@ -96,7 +100,10 @@ def run_analysis(analysis_id: str, config: dict):
         ax4 = fig.add_subplot(2, 3, 4)
         if 'log_divergence' in results:
             divergence_data = results['log_divergence']
-            # Handle NaN/Inf values
+            # Handle NaN/Inf values with logging
+            has_invalid = np.any(~np.isfinite(divergence_data))
+            if has_invalid:
+                logger.warning(f"Analysis {analysis_id}: Log divergence contains NaN/Inf values, replacing with defaults")
             divergence_clean = np.nan_to_num(divergence_data, nan=0.0, posinf=1.0, neginf=0.0)
             im = ax4.imshow(divergence_clean, cmap='viridis')
             plt.colorbar(im, ax=ax4, shrink=0.7)
@@ -106,7 +113,10 @@ def run_analysis(analysis_id: str, config: dict):
         ax5 = fig.add_subplot(2, 3, 5)
         if 'lyapunov_exponents' in results:
             lexp = results['lyapunov_exponents']
-            # Filter out NaN/Inf values
+            # Filter out NaN/Inf values with logging
+            has_invalid = np.any(~np.isfinite(lexp))
+            if has_invalid:
+                logger.warning(f"Analysis {analysis_id}: Lyapunov exponents contain NaN/Inf values, replacing with defaults")
             lexp_clean = np.nan_to_num(lexp, nan=0.0, posinf=0.0, neginf=0.0)
             ax5.bar(range(len(lexp_clean)), lexp_clean, color='green', alpha=0.7)
             ax5.axhline(y=0, color='r', linestyle='--')
