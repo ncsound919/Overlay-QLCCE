@@ -778,11 +778,18 @@ class BenfordQuantumAnalyzer:
         kl = np.sum(observed * np.log(observed / (expected + 1e-10) + 1e-10))
         return kl
     
+    def _kl_divergence_general(self, p, q):
+        """Kullback-Leibler divergence between two arbitrary discrete distributions p and q."""
+        eps = 1e-10
+        p_safe = p + eps
+        q_safe = q + eps
+        return np.sum(p_safe * np.log(p_safe / q_safe))
+    
     def _js_divergence(self, observed, digit_position):
         """Jensen-Shannon divergence (symmetric)"""
         expected = self.expected if digit_position == 1 else self._expected_nth_digit(digit_position)
         m = 0.5 * (observed + expected)
-        js = 0.5 * self._kl_divergence(observed, digit_position) + 0.5 * self._kl_divergence(expected, digit_position)
+        js = 0.5 * self._kl_divergence_general(observed, m) + 0.5 * self._kl_divergence_general(expected, m)
         return js
     
     def analyze_multiscale(self, data, scales=None):
