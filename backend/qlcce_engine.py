@@ -831,7 +831,6 @@ class BenfordQuantumAnalyzer:
             lattice = field_data
         
         # Analyze Benford compliance in different regions
-        n_regions = 4
         region_size = lattice.shape[0] // 2
         
         region_compliance = []
