@@ -1296,7 +1296,7 @@ def create_research_notebook():
     # Only run in Jupyter environment
     try:
         get_ipython()
-    except:
+    except NameError:
         print("This function requires Jupyter/IPython environment")
         return
     
